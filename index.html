@@ -895,6 +895,30 @@ tbody td{padding:0.85rem 1rem;font-size:0.85rem;vertical-align:middle}
           <label>Etiqueta / Nombre del cliente</label>
           <input type="text" id="new-label" placeholder="ej. Juan García — Proyecto X"/>
         </div>
+
+        <!-- CÓDIGO -->
+        <div class="field">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span>Código de acceso</span>
+            <span style="display:flex;align-items:center;gap:0.5rem;cursor:pointer" onclick="toggleCodeMode()">
+              <span id="code-mode-label" style="font-size:0.58rem;color:var(--accent)">modo: manual</span>
+              <span id="code-mode-toggle" style="background:var(--surface2);border:1px solid var(--border2);padding:0.15rem 0.5rem;font-size:0.58rem;letter-spacing:0.05em;color:var(--muted2)">cambiar</span>
+            </span>
+          </label>
+          <div style="display:flex;gap:0.5rem;align-items:center">
+            <input type="text" id="new-code" placeholder="ej. ALAT2025"
+              style="text-transform:uppercase;letter-spacing:0.1em;font-family:'Space Mono',monospace;font-size:1rem;font-weight:700;flex:1"
+              oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12)"
+              maxlength="12"/>
+            <button type="button" onclick="fillRandomCode()"
+              style="background:var(--surface2);border:1px solid var(--border2);color:var(--muted2);padding:0.65rem 0.8rem;cursor:pointer;font-size:0.75rem;white-space:nowrap;transition:all 0.15s"
+              onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+              onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--muted2)'"
+              title="Generar aleatorio">⟳ Auto</button>
+          </div>
+          <div id="code-taken-error" style="display:none;color:var(--red);font-family:'Space Mono',monospace;font-size:0.6rem;margin-top:0.3rem;letter-spacing:0.05em">⚠ Ese código ya existe, elige otro</div>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
           <div class="field">
             <label>Tipo de acceso</label>
@@ -916,7 +940,7 @@ tbody td{padding:0.85rem 1rem;font-size:0.85rem;vertical-align:middle}
         </div>
         <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:0.5rem">
           <button class="btn btn-ghost" onclick="closeModal('create-modal')">Cancelar</button>
-          <button class="btn btn-accent" onclick="createCode()">Generar código →</button>
+          <button class="btn btn-accent" onclick="createCode()">Crear código →</button>
         </div>
       </div>
     </div>
@@ -1095,13 +1119,53 @@ function closeModal(id){ document.getElementById(id).classList.remove('open'); }
 // ══════════════════════════════════════════
 function openCreateModal(){
   document.getElementById('new-label').value='';
+  document.getElementById('new-code').value='';
+  document.getElementById('code-taken-error').style.display='none';
+  fillRandomCode();
   openModal('create-modal');
+}
+
+function fillRandomCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const code = Array.from({length:8},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+  document.getElementById('new-code').value = code;
+  document.getElementById('code-taken-error').style.display='none';
+}
+
+function toggleCodeMode(){
+  // Just a UX hint — code is always editable, this just cycles the label
+  const lbl = document.getElementById('code-mode-label');
+  if(lbl.textContent==='modo: manual'){
+    lbl.textContent='modo: auto';
+    fillRandomCode();
+  } else {
+    lbl.textContent='modo: manual';
+    document.getElementById('new-code').value='';
+    document.getElementById('new-code').focus();
+  }
 }
 
 function createCode(){
   const label = document.getElementById('new-label').value.trim() || 'Sin etiqueta';
   const type  = document.getElementById('new-type').value;
   const exp   = document.getElementById('new-expiry').value;
+  const codeVal = document.getElementById('new-code').value.trim().toUpperCase();
+
+  // Validate code
+  if(!codeVal || codeVal.length < 3){
+    toast('El código debe tener al menos 3 caracteres', 'var(--accent2)');
+    document.getElementById('new-code').focus();
+    return;
+  }
+
+  // Check duplicate
+  const existing = codes.find(c => c.code === codeVal);
+  if(existing){
+    document.getElementById('code-taken-error').style.display='block';
+    document.getElementById('new-code').focus();
+    return;
+  }
+  document.getElementById('code-taken-error').style.display='none';
 
   let expiryDate = null;
   if(exp==='1d') expiryDate = new Date(Date.now()+86400000).toISOString();
@@ -1110,7 +1174,7 @@ function createCode(){
 
   const entry = {
     id: Date.now().toString(),
-    code: genCode(),
+    code: codeVal,
     label,
     type,
     expiry: exp,
@@ -1127,7 +1191,6 @@ function createCode(){
   refreshAdmin();
   toast('✓ Código creado: '+entry.code, 'var(--accent)');
 
-  // Show detail immediately
   setTimeout(()=>showDetail(entry.id), 300);
 }
 
